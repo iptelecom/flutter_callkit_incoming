@@ -1,9 +1,13 @@
 name: flutter_callkit_incoming
 description: Flutter Callkit Incoming to show callkit screen in your Flutter app.
-version: 1.0.2+2
+version: 1.0.2+201
 homepage: https://github.com/hiennguyen92/flutter_callkit_incoming
 repository: https://github.com/hiennguyen92/flutter_callkit_incoming
 issue_tracker: https://github.com/hiennguyen92/flutter_callkit_incoming/issues
+
+# The following line prevents the package from being accidentally published to
+# pub.dev using `pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 false_secrets:
   - /example/**

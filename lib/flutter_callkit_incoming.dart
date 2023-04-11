@@ -26,7 +26,7 @@ class FlutterCallkitIncoming {
   /// CallEvent.ACTION_CALL_CALLBACK - only Android (click action `Call back` from missed call notification)
   /// CallEvent.ACTION_CALL_TOGGLE_HOLD - only iOS
   /// CallEvent.ACTION_CALL_TOGGLE_MUTE - only iOS
-  /// CallEvent.ACTION_CALL_TOGGLE_DMTF - only iOS
+  /// CallEvent.ACTION_CALL_TOGGLE_DTMF - only iOS
   /// CallEvent.ACTION_CALL_TOGGLE_GROUP - only iOS
   /// CallEvent.ACTION_CALL_TOGGLE_AUDIO_SESSION - only iOS
   /// CallEvent.DID_UPDATE_DEVICE_PUSH_TOKEN_VOIP - only iOS
@@ -51,6 +51,20 @@ class FlutterCallkitIncoming {
   /// On Android, Nothing(only callback event listener).
   static Future startCall(dynamic params) async {
     await _channel.invokeMethod("startCall", params);
+  }
+
+  /// Set Mute on an call.
+  /// On iOS, using Callkit(create a history into the Phone app).
+  /// On Android, Nothing(only callback event listener).
+  static Future setAnswered(dynamic params) async {
+    await _channel.invokeMethod("setAnswered", params);
+  }
+
+  /// Set Mute on an call.
+  /// On iOS, using Callkit(create a history into the Phone app).
+  /// On Android, Nothing(only callback event listener).
+  static Future setMute(dynamic params) async {
+    await _channel.invokeMethod("setMute", params);
   }
 
   /// End an Incoming/Outgoing call.
@@ -112,8 +126,8 @@ class CallEvent {
       "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_HOLD";
   static const String ACTION_CALL_TOGGLE_MUTE =
       "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_MUTE";
-  static const String ACTION_CALL_TOGGLE_DMTF =
-      "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_DMTF";
+  static const String ACTION_CALL_TOGGLE_DTMF =
+      "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_DTMF";
   static const String ACTION_CALL_TOGGLE_GROUP =
       "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_GROUP";
   static const String ACTION_CALL_TOGGLE_AUDIO_SESSION =

@@ -24,18 +24,18 @@ class CallManager: NSObject {
         let handle = CXHandle(type: self.getHandleType(data.handleType), value: data.getEncryptHandle())
         let uuid = UUID(uuidString: data.uuid)
         let startCallAction = CXStartCallAction(call: uuid!, handle: handle)
-        startCallAction.isVideo = data.type > 0
+        startCallAction.isVideo = data.supportsVideo ? (data.type > 0 ? true : false) : false
         let callTransaction = CXTransaction()
         callTransaction.addAction(startCallAction)
         //requestCall
         self.requestCall(callTransaction, action: "startCall", completion: { _ in
             let callUpdate = CXCallUpdate()
-            callUpdate.remoteHandle = handle
+//            callUpdate.remoteHandle = handle
             callUpdate.supportsDTMF = data.supportsDTMF
             callUpdate.supportsHolding = data.supportsHolding
             callUpdate.supportsGrouping = data.supportsGrouping
             callUpdate.supportsUngrouping = data.supportsUngrouping
-            callUpdate.hasVideo = data.type > 0 ? true : false
+            callUpdate.hasVideo = data.supportsVideo ? (data.type > 0 ? true : false) : false
             callUpdate.localizedCallerName = data.nameCaller
             self.sharedProvider?.reportCall(with: uuid!, updated: callUpdate)
         })
@@ -82,7 +82,23 @@ class CallManager: NSObject {
         callTransaction.addAction(handleCall)
         //requestCall
     }
-    
+
+    func setMute(call: Call, muted: Bool) {
+        let handleCall = CXSetMutedCallAction(call: call.uuid, muted: muted)
+        let callTransaction = CXTransaction()
+        callTransaction.addAction(handleCall)
+        //requestCall
+        self.requestCall(callTransaction, action: "setMute: \(muted)")
+    }
+
+    func setAnswered(call: Call) {
+        let handleCall = CXAnswerCallAction(call: call.uuid)
+        let callTransaction = CXTransaction()
+        callTransaction.addAction(handleCall)
+        //requestCall
+        self.requestCall(callTransaction, action: "setAnswered")
+    }
+
     
     private func requestCall(_ transaction: CXTransaction, action: String, completion: ((Bool) -> Void)? = nil) {
         callController.request(transaction){ error in

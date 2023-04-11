@@ -17,7 +17,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     static let ACTION_CALL_TOGGLE_HOLD = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_HOLD"
     static let ACTION_CALL_TOGGLE_MUTE = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_MUTE"
-    static let ACTION_CALL_TOGGLE_DMTF = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_DMTF"
+    static let ACTION_CALL_TOGGLE_DTMF = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_DTMF"
     static let ACTION_CALL_TOGGLE_GROUP = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_GROUP"
     static let ACTION_CALL_TOGGLE_AUDIO_SESSION = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_AUDIO_SESSION"
     
@@ -105,6 +105,33 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             }
             result("OK")
             break
+        case "setAnswered":
+            guard let args = call.arguments else {
+                result("OK")
+                return
+            }
+            print("setAnswered, channel method invoked")
+            print(args)
+            if let getArgs = args as? [String: Any] {
+                self.data = Data(args: getArgs)
+                self.setAnswered(self.data!)
+            }
+            result("OK")
+            break
+        case "setMute":
+            guard let args = call.arguments else {
+                result("OK")
+                return
+            }
+            print("setMute, channel method invoked")
+            print(args)
+            if let getArgs = args as? [String: Any] {
+                self.data = Data(args: getArgs)
+                print(self.data)
+                self.setMute(self.data!, muted: getArgs["muted"]! as? Bool ?? false)
+            }
+            result("OK")
+            break
         case "activeCalls":
             result(self.callManager?.activeCalls())
             break;
@@ -139,12 +166,12 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         handle = CXHandle(type: self.getHandleType(data.handleType), value: data.getEncryptHandle())
         
         let callUpdate = CXCallUpdate()
-        callUpdate.remoteHandle = handle
+//        callUpdate.remoteHandle = handle
         callUpdate.supportsDTMF = data.supportsDTMF
         callUpdate.supportsHolding = data.supportsHolding
         callUpdate.supportsGrouping = data.supportsGrouping
         callUpdate.supportsUngrouping = data.supportsUngrouping
-        callUpdate.hasVideo = data.type > 0 ? true : false
+        callUpdate.hasVideo = data.supportsVideo ? (data.type > 0 ? true : false) : false
         callUpdate.localizedCallerName = data.nameCaller
         
         initCallkitProvider(data)
@@ -175,15 +202,79 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     @objc public func endCall(_ data: Data) {
         var call: Call? = nil
-        if(self.isFromPushKit){
-            call = Call(uuid: UUID(uuidString: self.data!.uuid)!, data: data)
-            self.isFromPushKit = false
+//        if(self.isFromPushKit){
+//            call = Call(uuid: UUID(uuidString: self.data!.uuid)!, data: data)
+//            self.isFromPushKit = false
+//            self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_ENDED, data.toJSON())
+//        }else {
+//            call = Call(uuid: UUID(uuidString: data.uuid)!, data: data)
+//        }
+        var uuid: UUID? = nil
+        if(self.isFromPushKit) {
+            uuid = UUID(uuidString: self.data?.uuid ?? data.uuid)
+            if (uuid != nil) {
+                call = self.callManager?.callWithUUID(uuid: uuid!)
+            }
             self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_ENDED, data.toJSON())
-        }else {
-            call = Call(uuid: UUID(uuidString: data.uuid)!, data: data)
+//             self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_MUTE, data.toJSON())
+        } else {
+            uuid = UUID(uuidString: data.uuid)
+            if (uuid != nil) {
+                call = self.callManager?.callWithUUID(uuid: uuid!)
+            }
         }
-        self.callManager?.endCall(call: call!)
+        if (call != nil) {
+            self.callManager?.endCall(call: call!)
+        }
     }
+    
+    @objc public func setMute(_ data: Data, muted: Bool) {
+        var call: Call? = nil
+        var uuid: UUID? = nil
+        print("Swift: setMute")
+        print(muted)
+        print(data.toJSON())
+         if(self.isFromPushKit) {
+             uuid = UUID(uuidString: self.data?.uuid ?? data.uuid)
+             if (uuid != nil) {
+                 call = self.callManager?.callWithUUID(uuid: uuid!)
+             }
+//             self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_MUTE, data.toJSON())
+         } else {
+             uuid = UUID(uuidString: data.uuid)
+             if (uuid != nil) {
+                 call = self.callManager?.callWithUUID(uuid: uuid!)
+             }
+         }
+        print(call)
+        if (call != nil) {
+            self.callManager?.setMute(call: call!, muted: muted)
+        }
+    }
+
+    @objc public func setAnswered(_ data: Data) {
+        var call: Call? = nil
+        var uuid: UUID? = nil
+        print("Swift: setMute")
+        print(data.toJSON())
+         if(self.isFromPushKit) {
+             uuid = UUID(uuidString: self.data?.uuid ?? data.uuid)
+             if (uuid != nil) {
+                 call = self.callManager?.callWithUUID(uuid: uuid!)
+             }
+//             self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_MUTE, data.toJSON())
+         } else {
+             uuid = UUID(uuidString: data.uuid)
+             if (uuid != nil) {
+                 call = self.callManager?.callWithUUID(uuid: uuid!)
+             }
+         }
+        print(call)
+        if (call != nil) {
+            self.callManager?.setAnswered(call: call!)
+        }
+    }
+
     
     @objc public func activeCalls() -> [[String: Any]]? {
         return self.callManager?.activeCalls()
@@ -257,7 +348,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     func createConfiguration(_ data: Data) -> CXProviderConfiguration {
         let configuration = CXProviderConfiguration(localizedName: data.appName)
-        configuration.supportsVideo = data.supportsVideo
+        configuration.supportsVideo = data.supportsVideo ? (data.type > 0 ? true : false) : false
         configuration.maximumCallGroups = data.maximumCallGroups
         configuration.maximumCallsPerCallGroup = data.maximumCallsPerCallGroup
         
@@ -441,7 +532,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             action.fail()
             return
         }
-        self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_DMTF, [ "id": action.callUUID.uuidString, "digits": action.digits, "type": action.type ])
+        self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_DTMF, [ "id": action.callUUID.uuidString, "digits": action.digits ])
         action.fulfill()
     }
     

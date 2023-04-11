@@ -240,7 +240,7 @@ class HomePageState extends State<HomePage> {
           case CallEvent.ACTION_CALL_TOGGLE_MUTE:
             // TODO: only iOS
             break;
-          case CallEvent.ACTION_CALL_TOGGLE_DMTF:
+          case CallEvent.ACTION_CALL_TOGGLE_DTMF:
             // TODO: only iOS
             break;
           case CallEvent.ACTION_CALL_TOGGLE_GROUP:
