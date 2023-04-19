@@ -53,7 +53,7 @@ class FlutterCallkitIncoming {
     await _channel.invokeMethod("startCall", params);
   }
 
-  /// Set Mute on an call.
+  /// Set Answered on an call.
   /// On iOS, using Callkit(create a history into the Phone app).
   /// On Android, Nothing(only callback event listener).
   static Future setAnswered(dynamic params) async {
@@ -65,6 +65,20 @@ class FlutterCallkitIncoming {
   /// On Android, Nothing(only callback event listener).
   static Future setMute(dynamic params) async {
     await _channel.invokeMethod("setMute", params);
+  }
+
+  /// Set Speakerphone on an call.
+  /// On iOS, using Callkit(create a history into the Phone app).
+  /// On Android, Nothing(only callback event listener).
+  static Future setSpeakerphoneOn(dynamic params) async {
+    await _channel.invokeMethod("setSpeakerphoneOn", params);
+  }
+
+  /// Check Speakerphone on an call.
+  /// On iOS, using Callkit(create a history into the Phone app).
+  /// On Android, Nothing(only callback event listener).
+  static Future<bool> isSpeakerphoneOn() async {
+    return await _channel.invokeMethod("isSpeakerphoneOn");
   }
 
   /// End an Incoming/Outgoing call.

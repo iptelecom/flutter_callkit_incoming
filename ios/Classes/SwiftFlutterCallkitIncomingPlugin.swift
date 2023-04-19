@@ -127,7 +127,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             print(args)
             if let getArgs = args as? [String: Any] {
                 self.data = Data(args: getArgs)
-                print(self.data)
+                print(self.data ?? "No Data")
                 self.setMute(self.data!, muted: getArgs["muted"]! as? Bool ?? false)
             }
             result("OK")
@@ -138,6 +138,21 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         case "endAllCalls":
             self.callManager?.endCallAlls()
             result("OK")
+            break
+        case "setSpeakerphoneOn":
+            guard let args = call.arguments else {
+                result("OK")
+                return
+            }
+            print("setSpeakerphoneOn, channel method invoked")
+            if let getArgs = args as? [String: Any] {
+                self.data = Data(args: getArgs)
+                self.setSpeakerphoneOn(getArgs["speaker"]! as? Bool ?? false)
+            }
+            result(AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType == AVAudioSession.Port.builtInSpeaker)
+            break
+        case "isSpeakerphoneOn":
+            result(AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType == AVAudioSession.Port.builtInSpeaker)
             break
         case "getDevicePushTokenVoIP":
             result(self.getDevicePushTokenVoIP())
@@ -383,10 +398,24 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         NotificationCenter.default.post(name: AVAudioSession.interruptionNotification, object: self, userInfo: userInfo)
     }
     
+    func setSpeakerphoneOn(_ enable: Bool) {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            if (enable) {
+                try session.overrideOutputAudioPort(AVAudioSession.PortOverride.speaker)
+            } else {
+                try session.overrideOutputAudioPort(AVAudioSession.PortOverride.none)
+            }
+            try session.setActive(data?.audioSessionActive ?? true)
+        } catch {
+            print(error)
+        }
+    }
+    
     func configurAudioSession(){
         let session = AVAudioSession.sharedInstance()
         do{
-            try session.setCategory(AVAudioSession.Category.playAndRecord, options: AVAudioSession.CategoryOptions.allowBluetooth)
+            try session.setCategory(AVAudioSession.Category.playAndRecord, options: [AVAudioSession.CategoryOptions.allowBluetooth, AVAudioSession.CategoryOptions.allowBluetoothA2DP])
             try session.setMode(self.getAudioSessionMode(data?.audioSessionMode))
             try session.setActive(data?.audioSessionActive ?? true)
             try session.setPreferredSampleRate(data?.audioSessionPreferredSampleRate ?? 44100.0)
