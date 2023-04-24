@@ -60,6 +60,13 @@ class FlutterCallkitIncoming {
     await _channel.invokeMethod("setAnswered", params);
   }
 
+  /// Set Hold on an call.
+  /// On iOS, using Callkit(create a history into the Phone app).
+  /// On Android, Nothing(only callback event listener).
+  static Future setHold(dynamic params) async {
+    await _channel.invokeMethod("setHold", params);
+  }
+
   /// Set Mute on an call.
   /// On iOS, using Callkit(create a history into the Phone app).
   /// On Android, Nothing(only callback event listener).

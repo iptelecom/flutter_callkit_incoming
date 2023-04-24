@@ -77,10 +77,14 @@ class CallManager: NSObject {
     
     
     func setHold(call: Call, onHold: Bool) {
+        print("CallManager: SetHold \(onHold)")
         let handleCall = CXSetHeldCallAction(call: call.uuid, onHold: onHold)
         let callTransaction = CXTransaction()
         callTransaction.addAction(handleCall)
         //requestCall
+        self.requestCall(callTransaction, action: "onHold: \(onHold)", completion: { _ in
+            print("CallManager: Hold set for \(call.uuid)")
+        })
     }
 
     func setMute(call: Call, muted: Bool) {
@@ -153,7 +157,7 @@ class CallManager: NSObject {
     }
     
     func removeCall(_ call: Call){
-        guard let idx = calls.firstIndex(where: { $0 === call }) else { return }
+        guard let idx = calls.firstIndex(where: { $0.uuid == call.uuid }) else { return }
         calls.remove(at: idx)
         callsChangedHandler?()
         postCallNotification()
