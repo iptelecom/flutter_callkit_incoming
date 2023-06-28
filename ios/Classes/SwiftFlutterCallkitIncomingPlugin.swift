@@ -111,7 +111,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
                 result("OK")
                 return
             }
-            print("setAnswered, channel method invoked")
+            print("Swift: setAnswered, channel method invoked")
             print(args)
             if let getArgs = args as? [String: Any] {
                 self.data = Data(args: getArgs)
@@ -124,7 +124,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
                 result("OK")
                 return
             }
-            print("setMute, channel method invoked")
+            print("Swift: setMute, channel method invoked")
             print(args)
             if let getArgs = args as? [String: Any] {
                 self.data = Data(args: getArgs)
@@ -138,7 +138,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
                 result("OK")
                 return
             }
-            print("setHold, channel method invoked")
+            print("Swift: setHold, channel method invoked")
             print(args)
             if let getArgs = args as? [String: Any] {
                 self.data = Data(args: getArgs)
@@ -159,7 +159,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
                 result("OK")
                 return
             }
-            print("setSpeakerphoneOn, channel method invoked")
+            print("Swift: setSpeakerphoneOn, channel method invoked")
             if let getArgs = args as? [String: Any] {
                 self.data = Data(args: getArgs)
                 self.setSpeakerphoneOn(getArgs["speaker"]! as? Bool ?? false)
@@ -196,7 +196,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         handle = CXHandle(type: self.getHandleType(data.handleType), value: data.getEncryptHandle())
         
         let callUpdate = CXCallUpdate()
-//        callUpdate.remoteHandle = handle
+        callUpdate.remoteHandle = handle
         callUpdate.supportsDTMF = data.supportsDTMF
         callUpdate.supportsHolding = data.supportsHolding
         callUpdate.supportsGrouping = data.supportsGrouping
@@ -231,7 +231,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         print(call ?? "No Call Found, Starting")
         print("Swift: Calls")
         print(self.callManager?.calls.map({ $0.uuid })  ?? "No Calls!")
-        if (call != nil) {
+        if (call == nil) {
             self.isFromPushKit = fromPushKit
             if(fromPushKit){
                 self.data = data
@@ -438,7 +438,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             if let image = UIImage(named: data.iconName) {
                 configuration.iconTemplateImageData = image.pngData()
             } else {
-                print("Unable to load icon \(data.iconName).");
+                print("Swift: Unable to load icon \(data.iconName).");
             }
         }
         if !data.ringtonePath.isEmpty || data.ringtonePath != "system_ringtone_default"  {
@@ -586,7 +586,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     
     public func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
-        print("CXSetHeldCallAction")
+        print("Swift: CXSetHeldCallAction")
         guard let call = self.callManager?.callWithUUID(uuid: action.callUUID) else {
             action.fail()
             return
@@ -662,7 +662,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     public func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
 //        if self.outgoingCall?.isOnHold ?? false || self.answerCall?.isOnHold ?? false{
-//            print("Call is on hold")
+//            print("Swift: Call is on hold")
 //            return
 //        }
 //        self.outgoingCall?.endCall()

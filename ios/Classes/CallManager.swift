@@ -27,16 +27,18 @@ class CallManager: NSObject {
         startCallAction.isVideo = data.supportsVideo ? (data.type > 0 ? true : false) : false
         let callTransaction = CXTransaction()
         callTransaction.addAction(startCallAction)
+        print("Swift: startCall for uuid: \(uuid!)")
         //requestCall
-        self.requestCall(callTransaction, action: "startCall", completion: { _ in
+        self.requestCall(callTransaction, action: "startCall", uuid: uuid?.uuidString ?? "", completion: { _ in
             let callUpdate = CXCallUpdate()
-//            callUpdate.remoteHandle = handle
+            callUpdate.remoteHandle = handle
             callUpdate.supportsDTMF = data.supportsDTMF
             callUpdate.supportsHolding = data.supportsHolding
             callUpdate.supportsGrouping = data.supportsGrouping
             callUpdate.supportsUngrouping = data.supportsUngrouping
             callUpdate.hasVideo = data.supportsVideo ? (data.type > 0 ? true : false) : false
             callUpdate.localizedCallerName = data.nameCaller
+            print("Swift: reportingCall on startCall for uuid: \(uuid!)")
             self.sharedProvider?.reportCall(with: uuid!, updated: callUpdate)
         })
     }
@@ -46,7 +48,7 @@ class CallManager: NSObject {
         let callTransaction = CXTransaction()
         callTransaction.addAction(endCallAction)
         //requestCall
-        self.requestCall(callTransaction, action: "endCall")
+        self.requestCall(callTransaction, action: "endCall", uuid: call.uuid.uuidString)
     }
     
     func endCallAlls() {
@@ -55,7 +57,7 @@ class CallManager: NSObject {
             let endCallAction = CXEndCallAction(call: call.uuid)
             let callTransaction = CXTransaction()
             callTransaction.addAction(endCallAction)
-            self.requestCall(callTransaction, action: "endCallAlls")
+            self.requestCall(callTransaction, action: "endCallAlls", uuid: call.uuid.uuidString)
         }
     }
     
@@ -77,13 +79,13 @@ class CallManager: NSObject {
     
     
     func setHold(call: Call, onHold: Bool) {
-        print("CallManager: SetHold \(onHold)")
+        print("Swift: CallManager: SetHold \(onHold)")
         let handleCall = CXSetHeldCallAction(call: call.uuid, onHold: onHold)
         let callTransaction = CXTransaction()
         callTransaction.addAction(handleCall)
         //requestCall
-        self.requestCall(callTransaction, action: "onHold: \(onHold)", completion: { _ in
-            print("CallManager: Hold set for \(call.uuid)")
+        self.requestCall(callTransaction, action: "onHold: \(onHold)", uuid: call.uuid.uuidString, completion: { _ in
+            print("Swift: CallManager: Hold set for \(call.uuid)")
         })
     }
 
@@ -92,7 +94,7 @@ class CallManager: NSObject {
         let callTransaction = CXTransaction()
         callTransaction.addAction(handleCall)
         //requestCall
-        self.requestCall(callTransaction, action: "setMute: \(muted)")
+        self.requestCall(callTransaction, action: "setMute: \(muted)", uuid: call.uuid.uuidString)
     }
 
     func setAnswered(call: Call) {
@@ -100,15 +102,16 @@ class CallManager: NSObject {
         let callTransaction = CXTransaction()
         callTransaction.addAction(handleCall)
         //requestCall
-        self.requestCall(callTransaction, action: "setAnswered")
+        self.requestCall(callTransaction, action: "setAnswered", uuid: call.uuid.uuidString)
     }
 
     
-    private func requestCall(_ transaction: CXTransaction, action: String, completion: ((Bool) -> Void)? = nil) {
+    private func requestCall(_ transaction: CXTransaction, action: String, uuid: String, completion: ((Bool) -> Void)? = nil) {
+        print("Swift: CallManager: Requesting transaction: \(action) on \(uuid)")
         callController.request(transaction){ error in
             if let error = error {
                 //fail
-                print("Error requesting transaction: \(error)")
+                print("Swift: CallManager: Error requesting transaction: \(error) on \(uuid)")
             }else {
                 if(action == "startCall"){
                     //push notification for Start Call
@@ -116,7 +119,7 @@ class CallManager: NSObject {
                     //push notification for End Call
                 }
                 completion?(error == nil)
-                print("Requested transaction successfully: \(action)")
+                print("Swift: CallManager: Requested transaction successfully: \(action) on \(uuid)")
             }
         }
     }
@@ -146,6 +149,7 @@ class CallManager: NSObject {
     }
     
     func addCall(_ call: Call){
+        print("Swift: addCall for \(call.uuid.uuidString)")
         calls.append(call)
         call.stateDidChange = { [weak self] in
             guard let strongSelf = self else { return }
@@ -157,6 +161,7 @@ class CallManager: NSObject {
     }
     
     func removeCall(_ call: Call){
+        print("Swift: removeCall for \(call.uuid.uuidString)")
         guard let idx = calls.firstIndex(where: { $0.uuid == call.uuid }) else { return }
         calls.remove(at: idx)
         callsChangedHandler?()

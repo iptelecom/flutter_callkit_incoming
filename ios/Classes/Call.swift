@@ -122,6 +122,7 @@ public class Call: NSObject {
 @objc public class Data: NSObject {
     @objc public var uuid: String
     @objc public var nameCaller: String
+    @objc public var number: String
     @objc public var appName: String
     @objc public var handle: String
     @objc public var avatar: String
@@ -146,9 +147,10 @@ public class Call: NSObject {
     @objc public var audioSessionPreferredSampleRate: Double
     @objc public var audioSessionPreferredIOBufferDuration: Double
     
-    @objc public init(id: String, nameCaller: String, handle: String, type: Int) {
+    @objc public init(id: String, nameCaller: String, number: String,handle: String, type: Int) {
         self.uuid = id
         self.nameCaller = nameCaller
+        self.number = number
         self.appName = "Callkit"
         self.handle = handle
         self.avatar = ""
@@ -183,6 +185,7 @@ public class Call: NSObject {
     public init(args: [String: Any?]) {
         self.uuid = args["id"] as? String ?? ""
         self.nameCaller = args["nameCaller"] as? String ?? ""
+        self.number = args["number"] as? String ?? ""
         self.appName = args["appName"] as? String ?? "Callkit"
         self.handle = args["handle"] as? String ?? ""
         self.avatar = args["avatar"] as? String ?? ""
@@ -248,6 +251,7 @@ public class Call: NSObject {
             "uuid": uuid,
             "id": uuid,
             "nameCaller": nameCaller,
+            "number": number,
             "appName": appName,
             "handle": handle,
             "avatar": avatar,
@@ -260,7 +264,8 @@ public class Call: NSObject {
     }
     
     func getEncryptHandle() -> String {
-        return String(format: "{\"nameCaller\":\"%@\", \"handle\":\"%@\"}", nameCaller, handle).encryptHandle()
+        return number;
+        //return String(format: "{\"nameCaller\":\"%@\", \"handle\":\"%@\"}", nameCaller, handle).encryptHandle()
     }
     
     
