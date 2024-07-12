@@ -23,7 +23,7 @@ class CallManager: NSObject {
     func startCall(_ data: Data) {
         let handle = CXHandle(type: self.getHandleType(data.handleType), value: data.getEncryptHandle())
         let uuid = UUID(uuidString: data.uuid)
-        let startCallAction = CXStartCallAction(call: uuid!, handle: handle)
+        let startCallAction = CXStartCallAction(call: uuid!, handle: CXHandle(type: self.getHandleType(data.handleType), value: ""))
         startCallAction.isVideo = data.supportsVideo ? (data.type > 0 ? true : false) : false
         let callTransaction = CXTransaction()
         callTransaction.addAction(startCallAction)
@@ -31,7 +31,7 @@ class CallManager: NSObject {
         //requestCall
         self.requestCall(callTransaction, action: "startCall", uuid: uuid?.uuidString ?? "", completion: { _ in
             let callUpdate = CXCallUpdate()
-            callUpdate.remoteHandle = handle
+//            callUpdate.remoteHandle = handle
             callUpdate.supportsDTMF = data.supportsDTMF
             callUpdate.supportsHolding = data.supportsHolding
             callUpdate.supportsGrouping = data.supportsGrouping
@@ -40,6 +40,7 @@ class CallManager: NSObject {
             callUpdate.localizedCallerName = data.nameCaller
             print("Swift: reportingCall on startCall for uuid: \(uuid!)")
             self.sharedProvider?.reportCall(with: uuid!, updated: callUpdate)
+            self.addCall(Call(uuid: uuid!, data: data, remoteHandle: handle, callUpdate: callUpdate, isOutGoing: true))
         })
     }
     

@@ -7,12 +7,15 @@
 
 import Foundation
 import AVFoundation
+import CallKit
 
 public class Call: NSObject {
     
     let uuid: UUID
     let data: Data
     let isOutGoing: Bool
+    let remoteHandle: CXHandle
+    let callUpdate: CXCallUpdate
     
     var handle: String?
     
@@ -88,9 +91,11 @@ public class Call: NSObject {
         return Date().timeIntervalSince(connectDate)
     }
     
-    init(uuid: UUID, data: Data, isOutGoing: Bool = false){
+    init(uuid: UUID, data: Data, remoteHandle: CXHandle, callUpdate: CXCallUpdate, isOutGoing: Bool = false){
         self.uuid = uuid
         self.data = data
+        self.remoteHandle = remoteHandle
+        self.callUpdate = callUpdate
         self.isOutGoing = isOutGoing
     }
     

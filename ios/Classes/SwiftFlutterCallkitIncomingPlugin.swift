@@ -196,7 +196,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         handle = CXHandle(type: self.getHandleType(data.handleType), value: data.getEncryptHandle())
         
         let callUpdate = CXCallUpdate()
-        callUpdate.remoteHandle = handle
+//        callUpdate.remoteHandle = handle
         callUpdate.supportsDTMF = data.supportsDTMF
         callUpdate.supportsHolding = data.supportsHolding
         callUpdate.supportsGrouping = data.supportsGrouping
@@ -212,7 +212,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         self.sharedProvider?.reportNewIncomingCall(with: uuid!, update: callUpdate) { error in
             if(error == nil) {
                 self.configurAudioSession()
-                let call = Call(uuid: uuid!, data: data)
+                let call = Call(uuid: uuid!, data: data, remoteHandle: handle!, callUpdate: callUpdate)
                 call.handle = data.handle
                 self.callManager?.addCall(call)
                 self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_INCOMING, data.toJSON())
@@ -350,7 +350,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     }
 
     
-    @objc public func activeCalls() -> [[String: Any]]? {
+    public func activeCalls() -> [[String: Any?]]? {
         return self.callManager?.activeCalls()
     }
     
@@ -537,7 +537,10 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     }
     
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
-        let call = Call(uuid: action.callUUID, data: self.data!, isOutGoing: true)
+        guard let call = self.callManager?.callWithUUID(uuid: action.callUUID) else{
+            action.fail()
+            return
+        }
         call.handle = action.handle.value
         configurAudioSession()
         call.hasStartedConnectDidChange = { [weak self] in
@@ -547,8 +550,10 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             self?.sharedProvider?.reportOutgoingCall(with: call.uuid, startedConnectingAt: call.connectedData)
         }
         self.outgoingCall = call;
-        self.callManager?.addCall(call)
-        self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_START, self.data?.toJSON())
+        if (self.callManager?.callWithUUID(uuid: action.callUUID) != nil) {
+            self.callManager?.addCall(call)
+        }
+        self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_START, call.data.toJSON())
         action.fulfill()
     }
     
@@ -571,7 +576,10 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             action.fail()
             return
         }
+        var callUpdate = call.callUpdate
+        callUpdate.remoteHandle = call.remoteHandle
         call.endCall()
+        self.sharedProvider?.reportCall(with: call.uuid, updated: callUpdate)
         self.callManager?.removeCall(call)
         if (self.answerCall == nil && self.outgoingCall == nil) {
             sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_DECLINE, self.data?.toJSON())
