@@ -14,20 +14,20 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     static let ACTION_CALL_DECLINE = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_DECLINE"
     static let ACTION_CALL_ENDED = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_ENDED"
     static let ACTION_CALL_TIMEOUT = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TIMEOUT"
-    
+    static let ACTION_CALL_CUSTOM = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_CUSTOM"
+
     static let ACTION_CALL_TOGGLE_HOLD = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_HOLD"
     static let ACTION_CALL_TOGGLE_MUTE = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_MUTE"
     static let ACTION_CALL_TOGGLE_DTMF = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_DTMF"
     static let ACTION_CALL_TOGGLE_GROUP = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_GROUP"
     static let ACTION_CALL_TOGGLE_AUDIO_SESSION = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_AUDIO_SESSION"
     
-    @objc public static var sharedInstance: SwiftFlutterCallkitIncomingPlugin? = nil
+    @objc public private(set) static var sharedInstance: SwiftFlutterCallkitIncomingPlugin!
     
-    private var channel: FlutterMethodChannel? = nil
-    private var eventChannel: FlutterEventChannel? = nil
-    private var callManager: CallManager? = nil
+    private var streamHandlers: WeakArray<EventCallbackHandler> = WeakArray([])
     
-    private var eventCallbackHandler: EventCallbackHandler?
+    private var callManager: CallManager
+
     private var sharedProvider: CXProvider? = nil
     
     private var outgoingCall : Call?
@@ -35,32 +35,56 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     private var data: Data?
     private var isFromPushKit: Bool = false
+    private var silenceEvents: Bool = false
     private let devicePushTokenVoIP = "DevicePushTokenVoIP"
-    
+
+
     private func sendEvent(_ event: String, _ body: [String : Any?]?) {
-        eventCallbackHandler?.send(event, body ?? [:] as [String : Any?])
-    }
-    
-    @objc public func sendEventCustom(_ event: String, body: Any?) {
-        eventCallbackHandler?.send(event, body ?? [:] as [String : Any?])
-    }
-    
-    public static func sharePluginWithRegister(with registrar: FlutterPluginRegistrar) -> SwiftFlutterCallkitIncomingPlugin {
-        if(sharedInstance == nil){
-            sharedInstance = SwiftFlutterCallkitIncomingPlugin()
-            sharedInstance!.channel = FlutterMethodChannel(name: "flutter_callkit_incoming", binaryMessenger: registrar.messenger())
-            sharedInstance!.eventChannel = FlutterEventChannel(name: "flutter_callkit_incoming_events", binaryMessenger: registrar.messenger())
-            sharedInstance!.callManager = CallManager()
-            sharedInstance!.eventCallbackHandler = EventCallbackHandler()
-            sharedInstance!.eventChannel?.setStreamHandler(sharedInstance!.eventCallbackHandler as? FlutterStreamHandler & NSObjectProtocol)
+        if silenceEvents {
+            print(event, " silenced")
+            return
+        } else {
+            streamHandlers.reap().forEach { handler in
+                handler?.send(event, body ?? [:])
+            }
         }
-        return sharedInstance!
+
     }
     
+    @objc public func sendEventCustom(_ event: String, body: NSDictionary?) {
+        streamHandlers.reap().forEach { handler in
+            handler?.send(event, body ?? [:])
+        }
+    }
+    
+    public static func sharePluginWithRegister(with registrar: FlutterPluginRegistrar) {
+        if(sharedInstance == nil){
+            sharedInstance = SwiftFlutterCallkitIncomingPlugin(messenger: registrar.messenger())
+        }
+        sharedInstance.shareHandlers(with: registrar)
+    }
     
     public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = sharePluginWithRegister(with: registrar)
-        registrar.addMethodCallDelegate(instance, channel: instance.channel!)
+        sharePluginWithRegister(with: registrar)
+    }
+
+    private static func createMethodChannel(messenger: FlutterBinaryMessenger) -> FlutterMethodChannel {
+        return FlutterMethodChannel(name: "flutter_callkit_incoming", binaryMessenger: messenger)
+    }
+
+    private static func createEventChannel(messenger: FlutterBinaryMessenger) -> FlutterEventChannel {
+        return FlutterEventChannel(name: "flutter_callkit_incoming_events", binaryMessenger: messenger)
+    }
+
+    public init(messenger: FlutterBinaryMessenger) {
+        callManager = CallManager()
+    }
+
+    private func shareHandlers(with registrar: FlutterPluginRegistrar) {
+        registrar.addMethodCallDelegate(self, channel: Self.createMethodChannel(messenger: registrar.messenger()))
+        let eventsHandler = EventCallbackHandler()
+        self.streamHandlers.append(eventsHandler)
+        Self.createEventChannel(messenger: registrar.messenger()).setStreamHandler(eventsHandler)
     }
     
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -147,11 +171,60 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             }
             result("OK")
             break
+        case "muteCall":
+            guard let args = call.arguments as? [String: Any] ,
+                  let callId = args["id"] as? String,
+                  let isMuted = args["isMuted"] as? Bool else {
+                result("OK")
+                return
+            }
+
+            self.muteCall(callId, isMuted: isMuted)
+            result("OK")
+            break
+        case "isMuted":
+            guard let args = call.arguments as? [String: Any] ,
+                  let callId = args["id"] as? String else{
+                result(false)
+                return
+            }
+            guard let callUUID = UUID(uuidString: callId),
+                  let call = self.callManager.callWithUUID(uuid: callUUID) else {
+                result(false)
+                return
+            }
+            result(call.isMuted)
+            break
+        case "holdCall":
+            guard let args = call.arguments as? [String: Any] ,
+                  let callId = args["id"] as? String,
+                  let onHold = args["isOnHold"] as? Bool else {
+                result("OK")
+                return
+            }
+            self.holdCall(callId, onHold: onHold)
+            result("OK")
+            break
+        case "callConnected":
+            guard let args = call.arguments else {
+                result("OK")
+                return
+            }
+            if(self.isFromPushKit){
+                self.connectedCall(self.data!)
+            }else{
+                if let getArgs = args as? [String: Any] {
+                    self.data = Data(args: getArgs)
+                    self.connectedCall(self.data!)
+                }
+            }
+            result("OK")
+            break
         case "activeCalls":
-            result(self.callManager?.activeCalls())
+            result(self.callManager.activeCalls())
             break;
         case "endAllCalls":
-            self.callManager?.endCallAlls()
+            self.callManager.endCallAlls()
             result("OK")
             break
         case "setSpeakerphoneOn":
@@ -172,6 +245,30 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         case "getDevicePushTokenVoIP":
             result(self.getDevicePushTokenVoIP())
             break;
+        case "silenceEvents":
+            guard let silence = call.arguments as? Bool else {
+                result("OK")
+                return
+            }
+
+            self.silenceEvents = silence
+            result("OK")
+            break;
+        case "requestNotificationPermission":
+            result("OK")
+            break
+         case "requestFullIntentPermission":
+            result("OK")
+            break
+        case "hideCallkitIncoming":
+            result("OK")
+            break
+        case "endNativeSubsystemOnly":
+            result("OK")
+            break
+        case "setAudioRoute":
+            result("OK")
+            break
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -186,6 +283,14 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         return UserDefaults.standard.string(forKey: devicePushTokenVoIP) ?? ""
     }
     
+    @objc public func getAcceptedCall() -> Data? {
+        NSLog("Call data ids \(String(describing: data?.uuid)) \(String(describing: answerCall?.uuid.uuidString))")
+        if data?.uuid.lowercased() == answerCall?.uuid.uuidString.lowercased() {
+            return data
+        }
+        return nil
+    }
+
     @objc public func showCallkitIncoming(_ data: Data, fromPushKit: Bool) {
         self.isFromPushKit = fromPushKit
         if(fromPushKit){
@@ -214,7 +319,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
                 self.configurAudioSession()
                 let call = Call(uuid: uuid!, data: data, remoteHandle: handle!, callUpdate: callUpdate)
                 call.handle = data.handle
-                self.callManager?.addCall(call)
+                self.callManager.addCall(call)
                 self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_INCOMING, data.toJSON())
                 self.endCallNotExist(data)
             }
@@ -238,6 +343,30 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             }
             initCallkitProvider(data)
             self.callManager?.startCall(data)
+        }
+    }
+
+    @objc public func muteCall(_ callId: String, isMuted: Bool) {
+        guard let callId = UUID(uuidString: callId),
+              let call = self.callManager.callWithUUID(uuid: callId) else {
+            return
+        }
+        if call.isMuted == isMuted {
+            self.sendMuteEvent(callId.uuidString, isMuted)
+        } else {
+            self.callManager.muteCall(call: call, isMuted: isMuted)
+        }
+    }
+
+    @objc public func holdCall(_ callId: String, onHold: Bool) {
+        guard let callId = UUID(uuidString: callId),
+              let call = self.callManager.callWithUUID(uuid: callId) else {
+            return
+        }
+        if call.isOnHold == onHold {
+            self.sendMuteEvent(callId.uuidString,  onHold)
+        } else {
+            self.callManager.holdCall(call: call, onHold: onHold)
         }
     }
     
@@ -272,7 +401,18 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             self.callManager?.endCall(call: call!)
         }
     }
-    
+
+    @objc public func connectedCall(_ data: Data) {
+        var call: Call? = nil
+        if(self.isFromPushKit){
+            call = Call(uuid: UUID(uuidString: self.data!.uuid)!, data: data)
+            self.isFromPushKit = false
+        }else {
+            call = Call(uuid: UUID(uuidString: data.uuid)!, data: data)
+        }
+        self.callManager.connectedCall(call: call!)
+    }
+
     @objc public func setMute(_ data: Data, muted: Bool) {
         var call: Call? = nil
         var uuid: UUID? = nil
@@ -298,7 +438,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             self.callManager?.setMute(call: call!, muted: muted)
         }
     }
-    
+
     @objc public func setHold(_ data: Data, onHold: Bool) {
         var call: Call? = nil
         var uuid: UUID? = nil
@@ -350,13 +490,13 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     }
 
     
-    public func activeCalls() -> [[String: Any?]]? {
-        return self.callManager?.activeCalls()
+    @obj public func activeCalls() -> [[String: Any?]] {
+        return self.callManager.activeCalls()
     }
     
     @objc public func endAllCalls() {
         self.isFromPushKit = false
-        self.callManager?.endCallAlls()
+        self.callManager.endCallAlls()
     }
     
     public func saveEndCall(_ uuid: String, _ reason: Int) {
@@ -384,7 +524,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     func endCallNotExist(_ data: Data) {
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(data.duration)) {
-            let call = self.callManager?.callWithUUID(uuid: UUID(uuidString: data.uuid)!)
+            let call = self.callManager.callWithUUID(uuid: UUID(uuidString: data.uuid)!)
             if (call != nil && self.answerCall == nil && self.outgoingCall == nil) {
                 self.callEndTimeout(data)
             }
@@ -395,7 +535,13 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     func callEndTimeout(_ data: Data) {
         self.saveEndCall(data.uuid, 3)
+        guard let call = self.callManager.callWithUUID(uuid: UUID(uuidString: data.uuid)!) else {
+            return
+        }
         sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TIMEOUT, data.toJSON())
+        if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
+            appDelegate.onTimeOut(call)
+        }
     }
     
     func getHandleType(_ handleType: String?) -> CXHandle.HandleType {
@@ -417,7 +563,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             self.sharedProvider = CXProvider(configuration: createConfiguration(data))
             self.sharedProvider?.setDelegate(self, queue: nil)
         }
-        self.callManager?.setSharedProvider(self.sharedProvider!)
+        self.callManager.setSharedProvider(self.sharedProvider!)
     }
     
     func createConfiguration(_ data: Data) -> CXProviderConfiguration {
@@ -447,9 +593,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         return configuration
     }
     
-    
-    
-    func senddefaultAudioInterruptionNofificationToStartAudioResource(){
+    func sendDefaultAudioInterruptionNofificationToStartAudioResource(){
         var userInfo : [AnyHashable : Any] = [:]
         let intrepEndeRaw = AVAudioSession.InterruptionType.ended.rawValue
         userInfo[AVAudioSessionInterruptionTypeKey] = intrepEndeRaw
@@ -470,18 +614,24 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             print(error)
         }
     }
-    
+
     func configurAudioSession(){
-        let session = AVAudioSession.sharedInstance()
-        do{
-            try session.setCategory(AVAudioSession.Category.playAndRecord, options: [AVAudioSession.CategoryOptions.allowBluetooth, AVAudioSession.CategoryOptions.allowBluetoothA2DP])
-            try session.overrideOutputAudioPort(AVAudioSession.PortOverride.none)
-            try session.setMode(self.getAudioSessionMode(data?.audioSessionMode))
-            try session.setActive(data?.audioSessionActive ?? true)
-            try session.setPreferredSampleRate(data?.audioSessionPreferredSampleRate ?? 44100.0)
-            try session.setPreferredIOBufferDuration(data?.audioSessionPreferredIOBufferDuration ?? 0.005)
-        }catch{
-            print(error)
+        if data?.configureAudioSession != false {
+            let session = AVAudioSession.sharedInstance()
+            do{
+                try session.setCategory(AVAudioSession.Category.playAndRecord, options: [
+                    .allowBluetoothA2DP,
+                    .duckOthers,
+                    .allowBluetooth,
+                ])
+
+                try session.setMode(self.getAudioSessionMode(data?.audioSessionMode))
+                try session.setActive(data?.audioSessionActive ?? true)
+                try session.setPreferredSampleRate(data?.audioSessionPreferredSampleRate ?? 44100.0)
+                try session.setPreferredIOBufferDuration(data?.audioSessionPreferredIOBufferDuration ?? 0.005)
+            }catch{
+                print(error)
+            }
         }
     }
     
@@ -521,19 +671,12 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         }
         return mode
     }
-    
-    
-    
-    
-    
-    
-    
+
     public func providerDidReset(_ provider: CXProvider) {
-        if(self.callManager == nil){ return }
-        for call in self.callManager!.calls{
+        for call in self.callManager.calls {
             call.endCall()
         }
-        self.callManager?.removeAllCalls()
+        self.callManager.removeAllCalls()
     }
     
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
@@ -547,32 +690,45 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             self?.sharedProvider?.reportOutgoingCall(with: call.uuid, startedConnectingAt: call.connectData)
         }
         call.hasConnectDidChange = { [weak self] in
-            self?.sharedProvider?.reportOutgoingCall(with: call.uuid, startedConnectingAt: call.connectedData)
+            self?.sharedProvider?.reportOutgoingCall(with: call.uuid, connectedAt: call.connectedData)
         }
         self.outgoingCall = call;
         if (self.callManager?.callWithUUID(uuid: action.callUUID) != nil) {
-            self.callManager?.addCall(call)
+            self.callManager.addCall(call)
         }
         self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_START, call.data.toJSON())
         action.fulfill()
     }
     
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
-        guard let call = self.callManager?.callWithUUID(uuid: action.callUUID) else{
+        guard let call = self.callManager.callWithUUID(uuid: action.callUUID) else{
             action.fail()
             return
         }
+        self.configurAudioSession()
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1200)) {
             self.configurAudioSession()
         }
+        call.hasConnectDidChange = { [weak self] in
+            self?.sharedProvider?.reportOutgoingCall(with: call.uuid, connectedAt: call.connectedData)
+        }
         self.answerCall = call
         sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_ACCEPT, self.data?.toJSON())
-        action.fulfill()
+        if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
+            appDelegate.onAccept(call, action)
+        }else {
+            action.fulfill()
+        }
     }
     
 
     public func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-        guard let call = self.callManager?.callWithUUID(uuid: action.callUUID) else {
+        guard let call = self.callManager.callWithUUID(uuid: action.callUUID) else {
+            if(self.answerCall == nil && self.outgoingCall == nil){
+                sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TIMEOUT, self.data?.toJSON())
+            } else {
+                sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_ENDED, self.data?.toJSON())
+            }
             action.fail()
             return
         }
@@ -580,22 +736,28 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         callUpdate.remoteHandle = call.remoteHandle
         call.endCall()
         self.sharedProvider?.reportCall(with: call.uuid, updated: callUpdate)
-        self.callManager?.removeCall(call)
+        self.callManager.removeCall(call)
         if (self.answerCall == nil && self.outgoingCall == nil) {
             sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_DECLINE, self.data?.toJSON())
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
+                appDelegate.onDecline(call, action)
+            } else {
                 action.fulfill()
             }
         }else {
-            sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_ENDED, self.data?.toJSON())
-            action.fulfill()
+            sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_ENDED, call.data.toJSON())
+            if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
+                appDelegate.onEnd(call, action)
+            } else {
+                action.fulfill()
+            }
         }
     }
     
     
     public func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
         print("Swift: CXSetHeldCallAction")
-        guard let call = self.callManager?.callWithUUID(uuid: action.callUUID) else {
+        guard let call = self.callManager.callWithUUID(uuid: action.callUUID) else {
             action.fail()
             return
         }
@@ -611,17 +773,17 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     }
     
     public func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
-        guard let call = self.callManager?.callWithUUID(uuid: action.callUUID) else {
+        guard let call = self.callManager.callWithUUID(uuid: action.callUUID) else {
             action.fail()
             return
         }
         call.isMuted = action.isMuted
-        self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_MUTE, [ "id": action.callUUID.uuidString, "isMuted": action.isMuted ])
+        sendMuteEvent(action.callUUID.uuidString, action.isMuted)
         action.fulfill()
     }
     
     public func provider(_ provider: CXProvider, perform action: CXSetGroupCallAction) {
-        guard (self.callManager?.callWithUUID(uuid: action.callUUID)) != nil else {
+        guard (self.callManager.callWithUUID(uuid: action.callUUID)) != nil else {
             action.fail()
             return
         }
@@ -630,7 +792,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     }
     
     public func provider(_ provider: CXProvider, perform action: CXPlayDTMFCallAction) {
-        guard (self.callManager?.callWithUUID(uuid: action.callUUID)) != nil else {
+        guard (self.callManager.callWithUUID(uuid: action.callUUID)) != nil else {
             action.fail()
             return
         }
@@ -640,21 +802,34 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     
     public func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) {
+        guard let call = self.callManager.callWithUUID(uuid: action.uuid) else {
+            action.fail()
+            return
+        }
         sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TIMEOUT, self.data?.toJSON())
+        if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
+            appDelegate.onTimeOut(call)
+        }
+        action.fulfill()
     }
     
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+
+        if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
+            appDelegate.didActivateAudioSession(audioSession)
+        }
+
         if(self.answerCall?.hasConnected ?? false){
-            senddefaultAudioInterruptionNofificationToStartAudioResource()
+            sendDefaultAudioInterruptionNofificationToStartAudioResource()
             return
         }
         if(self.outgoingCall?.hasConnected ?? false){
-            senddefaultAudioInterruptionNofificationToStartAudioResource()
+            sendDefaultAudioInterruptionNofificationToStartAudioResource()
             return
         }
         self.outgoingCall?.startCall(withAudioSession: audioSession) {success in
             if success {
-                self.callManager?.addCall(self.outgoingCall!)
+                self.callManager.addCall(self.outgoingCall!)
                 self.outgoingCall?.startAudio()
             }
         }
@@ -663,14 +838,20 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
                 self.answerCall?.startAudio()
             }
         }
-        senddefaultAudioInterruptionNofificationToStartAudioResource()
+        sendDefaultAudioInterruptionNofificationToStartAudioResource()
         configurAudioSession()
+
         self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_AUDIO_SESSION, [ "isActivate": true ])
     }
     
     public func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+//
+//        if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
+//            appDelegate.didDeactivateAudioSession(audioSession)
+//        }
+//
 //        if self.outgoingCall?.isOnHold ?? false || self.answerCall?.isOnHold ?? false{
-//            print("Swift: Call is on hold")
+//            print("Call is on hold")
 //            return
 //        }
 //        self.outgoingCall?.endCall()
@@ -681,14 +862,22 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
 //        if(self.answerCall != nil){
 //            self.answerCall = nil
 //        }
-//        self.callManager?.removeAllCalls()
+//        self.callManager.removeAllCalls()
+//
         self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_AUDIO_SESSION, [ "isActivate": false ])
     }
     
-    
+    private func sendMuteEvent(_ id: String, _ isMuted: Bool) {
+        self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_MUTE, [ "id": id, "isMuted": isMuted ])
+    }
+
+    private func sendHoldEvent(_ id: String, _ isOnHold: Bool) {
+        self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TOGGLE_HOLD, [ "id": id, "isOnHold": isOnHold ])
+    }
+
 }
 
-class EventCallbackHandler: FlutterStreamHandler {
+class EventCallbackHandler: NSObject, FlutterStreamHandler {
     private var eventSink: FlutterEventSink?
     
     public func send(_ event: String, _ body: Any) {
