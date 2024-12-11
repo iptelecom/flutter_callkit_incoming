@@ -19,7 +19,7 @@ enum Event {
   actionCallCallback,
   actionCallToggleHold,
   actionCallToggleMute,
-  actionCallToggleDmtf,
+  actionCallToggleDtmf,
   actionCallToggleGroup,
   actionCallToggleAudioSession,
   actionCallCustom,
@@ -49,8 +49,8 @@ extension EventX on Event {
         return 'com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_HOLD';
       case Event.actionCallToggleMute:
         return 'com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_MUTE';
-      case Event.actionCallToggleDmtf:
-        return 'com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_DMTF';
+      case Event.actionCallToggleDtmf:
+        return 'com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_DTMF';
       case Event.actionCallToggleGroup:
         return 'com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_GROUP';
       case Event.actionCallToggleAudioSession:

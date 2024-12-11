@@ -277,7 +277,7 @@ Our top sponsors are shown below!
           case Event.actionCallToggleMute:
             // TODO: only iOS
             break;
-          case Event.actionCallToggleDmtf:
+          case Event.actionCallToggleDtmf:
             // TODO: only iOS
             break;
           case Event.actionCallToggleGroup:

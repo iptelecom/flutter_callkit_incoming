@@ -254,7 +254,7 @@ class HomePageState extends State<HomePage> {
           case Event.actionCallToggleMute:
             // TODO: only iOS
             break;
-          case Event.actionCallToggleDmtf:
+          case Event.actionCallToggleDtmf:
             // TODO: only iOS
             break;
           case Event.actionCallToggleGroup:

@@ -108,8 +108,8 @@ class FlutterCallkitIncoming {
   /// Set Speakerphone on an call.
   /// On iOS, using Callkit(create a history into the Phone app).
   /// On Android, Nothing(only callback event listener).
-  static Future setSpeakerphoneOn(dynamic params) async {
-    await _channel.invokeMethod("setSpeakerphoneOn", params);
+  static Future<bool> setSpeakerphoneOn(dynamic params) async {
+    return await _channel.invokeMethod("setSpeakerphoneOn", params);
   }
 
   /// Check Speakerphone on an call.
